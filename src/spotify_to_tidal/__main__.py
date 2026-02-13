@@ -1,6 +1,7 @@
 import yaml
 import argparse
 import sys
+import os
 
 from . import sync as _sync
 from . import auth as _auth
@@ -12,8 +13,34 @@ def main():
     parser.add_argument('--sync-favorites', action=argparse.BooleanOptionalAction, help='synchronize the favorites')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
+    try:
+        with open(args.config, 'r') as f:
+            config = yaml.safe_load(f)
+            if config is None:
+                config = {}
+    except FileNotFoundError:
+        print(f"Config file {args.config} not found, attempting to use environment variables...")
+        config = {}
+
+    # Ensure spotify config section exists
+    if 'spotify' not in config:
+        config['spotify'] = {}
+
+    # Populate from environment variables if present
+    env_mapping = {
+        'SPOTIFY_CLIENT_ID': 'client_id',
+        'SPOTIFY_CLIENT_SECRET': 'client_secret',
+        'SPOTIFY_USERNAME': 'username',
+        'SPOTIFY_REDIRECT_URI': 'redirect_uri'
+    }
+
+    for env_var, config_key in env_mapping.items():
+        if env_var in os.environ:
+            config['spotify'][config_key] = os.environ[env_var]
+            # If we are using env vars, we probably want headless mode
+            if 'open_browser' not in config['spotify']:
+                config['spotify']['open_browser'] = False
+
     print("Opening Spotify session")
     spotify_session = _auth.open_spotify_session(config['spotify'])
     print("Opening Tidal session")

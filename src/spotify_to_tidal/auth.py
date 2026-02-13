@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import spotipy
 import tidalapi
 import webbrowser
@@ -14,6 +15,12 @@ __all__ = [
 SPOTIFY_SCOPES = 'playlist-read-private, user-library-read'
 
 def open_spotify_session(config) -> spotipy.Spotify:
+    # If provided via env var, write the cache file so spotipy can find it
+    if os.environ.get('SPOTIFY_CACHE'):
+        cache_path = f".cache-{config['username']}"
+        with open(cache_path, 'w') as f:
+            f.write(os.environ['SPOTIFY_CACHE'])
+
     credentials_manager = spotipy.SpotifyOAuth(username=config['username'],
        scope=SPOTIFY_SCOPES,
        client_id=config['client_id'],
@@ -29,11 +36,22 @@ def open_spotify_session(config) -> spotipy.Spotify:
     return spotipy.Spotify(oauth_manager=credentials_manager)
 
 def open_tidal_session(config = None) -> tidalapi.Session:
-    try:
-        with open('.session.yml', 'r') as session_file:
-            previous_session = yaml.safe_load(session_file)
-    except OSError:
-        previous_session = None
+    previous_session = None
+    
+    # Try to load from env var first
+    if os.environ.get('TIDAL_SESSION'):
+        try:
+            previous_session = yaml.safe_load(os.environ['TIDAL_SESSION'])
+        except Exception as e:
+            print(f"Error parsing TIDAL_SESSION env var: {e}")
+
+    # Fallback to file
+    if not previous_session:
+        try:
+            with open('.session.yml', 'r') as session_file:
+                previous_session = yaml.safe_load(session_file)
+        except OSError:
+            previous_session = None
 
     if config:
         session = tidalapi.Session(config=config)
